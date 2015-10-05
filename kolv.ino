@@ -15,25 +15,28 @@ class Handler {
     size_t size;
   
   public: 
-    Handler() {
-      this->list = NULL;
-      this->size = 0;  
-    };
-    
-    ~Handler() {
-      delete []list;
-    }
-    
+    Handler();
+    ~Handler();
+   
     bool bind(String name, unsigned pin, int(*callback)(String value));
     bool update(String data);
     void shutdown();
 };
 
+Handler::Handler() {
+  this->list = NULL;
+  this->size = 0;  
+};
+
+Handler::~Handler() {
+  delete []list;
+}
+
 bool Handler::bind(String name, unsigned pin, int(*callback)(String value)) {
     this->list = (Entry*)realloc(this->list, ++size * sizeof(Entry));
     if (this->list != NULL) {
       list[size] = Entry{name, pin, callback};
-      Serial.println("Appended " + name);
+      Serial.println(" [Handler] listening for: \"" + name + "\"");
     } else {
       this->shutdown();
       return false;
@@ -46,8 +49,9 @@ bool Handler::update(String data) {
 }
 
 void Handler::shutdown() {
-  for (int i = 0; i < this->size; i++) {
-    // turn off outputs  
+  for (int i = 0; i < size; i++) {
+    // If we don't do this, all pins will be left in their current state
+    digitalWrite(this->list[size].pin, LOW);  
   }  
 }
 
@@ -61,7 +65,6 @@ Handler *handler = new Handler();
 void setup() {
   // Open serial communications:
   Serial.begin(9600);
-  Serial.println("Type AT commands!");
 
   handler->bind("halvljus1", 4, testt);
   handler->bind("halvljus2", 4, testt);
@@ -74,16 +77,10 @@ void setup() {
 
 void loop() {
   // Read device output if available.
-
-  
-  
-  
   while (bluetooth.available() > 0) {
-
     char recieved = (char)bluetooth.read();
     
     if (recieved == '\n') {
-      //Serial.println(md5str);
       Serial.println("Recieved: " + inData); 
 
       handler->update(inData);
@@ -114,7 +111,6 @@ void loop() {
   // Read user input if available.
   if (Serial.available()){
     delay(10); // The delay is necessary to get this working!
-
     bluetooth.print(Serial.readString() + '\n');
   }
 }
