@@ -35,6 +35,8 @@ bool Handler::bind(String name, unsigned pin, int(*callback)(String)) {
     list = (Entry **)realloc(this->list, (size + 1) * sizeof(Entry *));
     if (this->list != NULL) {
       list[size] = new Entry{name, pin, callback};
+      pinMode(pin, OUTPUT);
+      
       Serial.println(" * listening for: \"" + list[size]->name + "\"");
       size++;
       
@@ -83,8 +85,16 @@ bool Handler::POST() {
 }
 
 
-int testt(String value) {
-  return value.length();
+int setLamp(String value) {
+  if (value == "on") {
+    digitalWrite(13, HIGH);  
+  }
+
+  if (value == "off") {
+    digitalWrite(13, LOW);  
+  }
+  
+  return true;
 }
 
 SoftwareSerial bluetooth(4, 2); // RX, TX
@@ -95,13 +105,17 @@ void setup() {
   Serial.begin(9600);
   bluetooth.begin(9600);
  
-  handler->bind("backlyktah", 1, testt);
-  handler->bind("backlyktav", 2, testt);
-  handler->bind("halvljus", 3, testt);
-  handler->bind("helljus", 4, testt);
+  handler->bind("headlight", 13, setLamp);
+  // handler->bind("blinker_left", 2, testt);
+  // handler->bind("blinker_right", 3, testt);
+  // handler->bind("power", 4, testt);
+  // handler->bind("ignition", 4, testt);
+  // handler->bind("illumination", 4, testt);
 
   handler->POST();
-
+  
+    
+    digitalWrite(13, HIGH);  
 }
 
 void loop() {
