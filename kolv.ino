@@ -1,10 +1,12 @@
 #include <SoftwareSerial.h>
 #include <MD5.h>
 
+SoftwareSerial bluetooth(4, 2); // RX, TX
+
 struct Entry {
     String name;
     unsigned pin;
-    int(*callback)(String);
+    int(*callback)(unsigned, String);
 };
 
 class Handler {
@@ -16,9 +18,10 @@ class Handler {
     Handler();
     ~Handler();
    
-    bool bind(String name, unsigned pin, int(*callback)(String));
+    bool bind(String name, unsigned pin, int(*callback)(unsigned, String));
     bool update(String data);
     void shutdown();
+    bool sendStates();
     bool POST();
 };
 
@@ -31,7 +34,7 @@ Handler::~Handler() {
   delete []list;
 }
 
-bool Handler::bind(String name, unsigned pin, int(*callback)(String)) {
+bool Handler::bind(String name, unsigned pin, int(*callback)(unsigned, String)) {
     list = (Entry **)realloc(this->list, (size + 1) * sizeof(Entry *));
     if (this->list != NULL) {
       list[size] = new Entry{name, pin, callback};
@@ -50,18 +53,25 @@ bool Handler::bind(String name, unsigned pin, int(*callback)(String)) {
 bool Handler::update(String data) {
   int argstart = data.indexOf('(');
   int argend   = data.indexOf(')');
-  
+
+  // Send all the current pin states when successfully connected
+  if (data == "Connected") {
+    this->sendStates();  
+    return true;
+  }
+
+  // Start checking for commands with arguments
   if (argstart == -1 || argend == -1) {
     Serial.println("Got invalid command: " + data);  
     return false;
   }
 
-  String name = data.substring(0, argstart);
+  String command = data.substring(0, argstart);
   String args = data.substring(argstart + 1, argend);
   
   for (int i = 0; i < size; i++) {
-    if (this->list[i]->name == name) {
-      int response = this->list[i]->callback(args);  
+    if (this->list[i]->name == command) {
+      int response = this->list[i]->callback(list[i]->pin, args);  
       Serial.print("Got response from Hardware: ");
       Serial.println(response);
       
@@ -75,7 +85,7 @@ bool Handler::update(String data) {
 void Handler::shutdown() {
   for (int i = 0; i < size; i++) {
     // If we don't do this, all pins will be left in their current state
-    digitalWrite(this->list[size]->pin, LOW);  
+    digitalWrite(this->list[i]->pin, LOW);  
   }  
 }
 
@@ -85,19 +95,31 @@ bool Handler::POST() {
 }
 
 
-int setLamp(String value) {
+int setLamp(unsigned pin, String value) {
   if (value == "on") {
-    digitalWrite(13, HIGH);  
+    digitalWrite(pin, HIGH);  
   }
 
   if (value == "off") {
-    digitalWrite(13, LOW);  
+    digitalWrite(pin, LOW);  
   }
   
   return true;
 }
 
-SoftwareSerial bluetooth(4, 2); // RX, TX
+bool Handler::sendStates() {
+    
+  for (int i = 0; i < size; i++) {
+    String name = list[i]->name;
+    int state = digitalRead(list[i]->pin);
+    bluetooth.println("State(" + name + "," + String(state) + ")");
+  }
+
+  return true;
+}
+
+
+
 Handler *handler = new Handler();
 String inData = "";
 
@@ -106,16 +128,10 @@ void setup() {
   bluetooth.begin(9600);
  
   handler->bind("headlight", 13, setLamp);
-  // handler->bind("blinker_left", 2, testt);
-  // handler->bind("blinker_right", 3, testt);
-  // handler->bind("power", 4, testt);
-  // handler->bind("ignition", 4, testt);
-  // handler->bind("illumination", 4, testt);
+  handler->bind("blinkers_left", 12, setLamp);
+  handler->bind("blinkers_right", 11, setLamp);
 
   handler->POST();
-  
-    
-    digitalWrite(13, HIGH);  
 }
 
 void loop() {
@@ -134,6 +150,6 @@ void loop() {
 
   if (Serial.available()){
     delay(10); // The delay is necessary to get this working!
-    bluetooth.print(Serial.readString() + '\n');
+    bluetooth.println(Serial.readString());
   }
 }
