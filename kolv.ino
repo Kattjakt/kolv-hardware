@@ -136,15 +136,15 @@ void setup() {
 
 void loop() {
   while (bluetooth.available() > 0) {
-    char recieved = (char)bluetooth.read();
+    char received = (char)bluetooth.read();
     
-    if (recieved == '\n') {
-      Serial.println("Recieved: " + inData); 
+    if (received == '\n') {
+      Serial.println("Received: " + inData); 
       handler->update(inData);
       inData = ""; 
       
     } else {
-      inData += recieved;
+      inData += received;
     }
   }
 
